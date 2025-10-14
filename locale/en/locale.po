@@ -34,3 +34,9 @@ msgstr "The XML is valid."
 
 msgid "plugins.importexport.copernicus.generatedXml"
 msgstr "Generated XML"
+
+msgid "common.results"
+msgstr "Results"
+
+msgid "common.success" 
+msgstr "Success"

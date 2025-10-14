@@ -34,3 +34,9 @@ msgstr "XML صالح."
 
 msgid "plugins.importexport.copernicus.generatedXml"
 msgstr "XML المُولَّد"
+
+msgid "common.results"
+msgstr "نتائج"
+
+msgid "common.success" 
+msgstr "نجاح"
