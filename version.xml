@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE version SYSTEM "../../../lib/pkp/dtd/pluginVersion.dtd">
+
+<!--
+  * plugins/importexport/copernicus/version.xml
+  *
+  * Copyright (c) 2013-2015 Simon Fraser University Library
+  * Copyright (c) 2003-2015 John Willinsky
+  * Distributed under the GNU GPL v2. For full terms see the file docs/COPYING.
+  *
+  * Plugin version information.
+  -->
+<version>
+	<application>copernicus</application>
+	<type>plugins.importexport</type>
+	<release>0.0.5</release>
+	<date>2024-01-01</date>
+	<lazy-load>1</lazy-load>
+	<class>APP\plugins\importexport\copernicus\CopernicusExportPlugin</class>
+</version>
