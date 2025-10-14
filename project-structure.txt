@@ -1,19 +1,17 @@
 ├── locale/
 │   ├── ar/
-│   │   └── locale.po (0.9 KB)
+│   │   └── locale.po (1.2 KB)
 │   └── en/
-│       └── locale.po (0.8 KB)
+│       └── locale.po (1.1 KB)
 ├── templates/
-│   ├── issues.tpl (1.6 KB)
-│   └── validate.tpl (3.4 KB)
-├── tmp/
-│   ├── CHECKLIST.txt (4.8 KB)
-│   ├── copernicus-compatibility-report.txt (4.6 KB)
-│   └── copernicus-export-sample.xml (1.6 KB)
+│   ├── error.tpl (0.6 KB)
+│   ├── issues.tpl (1.7 KB)
+│   └── validate.tpl (3.3 KB)
 ├── CHANGES.txt (2.8 KB)
-├── CopernicusExportPlugin.php (12.2 KB)
+├── CLAUDE.md (2.6 KB)
+├── CopernicusExportPlugin.php (16.0 KB)
 ├── ic-import.xsd (63.8 KB)
 ├── index.php (0.5 KB)
-├── project-structure.txt (1.1 KB)
+├── project-structure.txt (0.5 KB)
 ├── README.md (2.7 KB)
 └── version.xml (0.6 KB)

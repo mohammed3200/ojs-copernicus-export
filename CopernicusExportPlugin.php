@@ -50,6 +50,141 @@ class CopernicusExportPlugin extends ImportExportPlugin
         return __('plugins.importexport.copernicus.description');
     }
 
+    /**
+     * Display the plugin interface
+     */
+    public function display($args, $request)
+    {
+        parent::display($args, $request);
+        $context = $request->getContext();
+        
+        // Get the operation from route or args
+        $op = $request->getUserVar('op') ?: array_shift($args);
+        
+        switch ($op) {
+            case 'exportIssue':
+                // Handle export - download XML file
+                $issueId = (int)($request->getUserVar('issueId') 
+                    ?: $request->getUserVar('id') 
+                    ?: array_shift($args));
+                
+                if (empty($issueId)) {
+                    error_log('Copernicus Plugin: No issue ID provided for export');
+                    $this->showError('No issue ID provided');
+                    return;
+                }
+                
+                $issue = Repo::issue()->get($issueId);
+                if (!$issue) {
+                    error_log("Copernicus Plugin: Issue not found with ID: $issueId");
+                    $this->showError('Issue not found');
+                    return;
+                }
+                
+                if ($issue->getData('contextId') != $context->getId()) {
+                    error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId());
+                    $this->showError('Issue does not belong to this journal');
+                    return;
+                }
+                
+                $this->exportIssue($context, $issue);
+                break;
+
+            case 'validateIssue':
+                // Handle validation - show validation results page
+                $issueId = (int)($request->getUserVar('issueId') 
+                    ?: $request->getUserVar('id') 
+                    ?: array_shift($args));
+                
+                if (empty($issueId)) {
+                    error_log('Copernicus Plugin: No issue ID provided for validation');
+                    $this->showError('No issue ID provided');
+                    return;
+                }
+                
+                $issue = Repo::issue()->get($issueId);
+                if (!$issue) {
+                    error_log("Copernicus Plugin: Issue not found with ID: $issueId");
+                    $this->showError('Issue not found');
+                    return;
+                }
+                
+                if ($issue->getData('contextId') != $context->getId()) {
+                    error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId());
+                    $this->showError('Issue does not belong to this journal');
+                    return;
+                }
+                
+                // Generate XML for validation
+                $xmlContent = $this->generateIssueXml($context, $issue);
+                
+                if ($xmlContent === false) {
+                    $this->showError('Failed to generate XML');
+                    return;
+                }
+                
+                // Validate XML and prepare results
+                $xml_errors = $this->validateXml($xmlContent);
+                $xml_lines = explode("\n", $xmlContent);
+
+                // Display validation template
+                $templateMgr = TemplateManager::getManager($request);
+                $templateMgr->assign([
+                    'xml_errors' => $xml_errors,
+                    'xml_lines' => $xml_lines
+                ]);
+                $templateMgr->display($this->getTemplateResource('validate.tpl'));
+                break;
+
+            default:
+                // Display list of issues for export
+                $this->showIssuesList($request, $context);
+        }
+    }
+
+    /**
+     * Show the list of issues
+     */
+    private function showIssuesList($request, $context)
+    {
+        $issues = Repo::issue()
+            ->getCollector()
+            ->filterByContextIds([$context->getId()])
+            ->filterByPublished(true)
+            ->getMany();
+
+        $templateMgr = TemplateManager::getManager($request);
+        $templateMgr->assign('issues', $issues);
+        $templateMgr->display($this->getTemplateResource('issues.tpl'));
+    }
+
+    /**
+     * Show error message
+     */
+    private function showError($message)
+    {
+        $templateMgr = TemplateManager::getManager(Application::get()->getRequest());
+        $templateMgr->assign('errorMessage', $message);
+        $templateMgr->display($this->getTemplateResource('error.tpl'));
+    }
+
+    /**
+     * Generate XML for an issue
+     */
+    private function generateIssueXml(&$context, &$issue)
+    {
+        try {
+            $doc = XMLCustomWriter::createDocument();
+            $issueNode = $this->generateIssueDom($doc, $context, $issue);
+            XMLCustomWriter::appendChild($doc, $issueNode);
+            $xmlContent = XMLCustomWriter::getXML($doc);
+            return $this->formatXml($xmlContent);
+        } catch (Exception $e) {
+            error_log("Copernicus Plugin: XML generation error: " . $e->getMessage());
+            return false;
+        }
+    }
+
     public function formatDate($date)
     {
         if ($date == '') return null;
@@ -59,18 +194,14 @@ class CopernicusExportPlugin extends ImportExportPlugin
     public function formatXml($xmlContent)
     {
         if (is_string($xmlContent)) {
-            // If it's already a string, just format it
             $dom = new \DOMDocument('1.0');
             $dom->preserveWhiteSpace = false;
             $dom->formatOutput = true;
-            $dom->loadXML($xmlContent);
-            return $dom->saveXML();
-        } else {
-            // Handle DOMDocument objects properly
-            $xmlContent->preserveWhiteSpace = false;
-            $xmlContent->formatOutput = true;
-            return $xmlContent->saveXML();
+            if ($dom->loadXML($xmlContent)) {
+                return $dom->saveXML();
+            }
         }
+        return $xmlContent;
     }
 
     public function &generateIssueDom(&$doc, &$context, &$issue)
@@ -206,16 +337,15 @@ class CopernicusExportPlugin extends ImportExportPlugin
 
     public function exportIssue(&$context, &$issue, $outputFile = null)
     {
-        $doc = XMLCustomWriter::createDocument();
-        $issueNode = $this->generateIssueDom($doc, $context, $issue);
-        XMLCustomWriter::appendChild($doc, $issueNode);
-
-        $xmlContent = XMLCustomWriter::getXML($doc);
-        $formattedXml = $this->formatXml($xmlContent);
+        $xmlContent = $this->generateIssueXml($context, $issue);
+        
+        if ($xmlContent === false) {
+            return false;
+        }
 
         if (!empty($outputFile)) {
             if (($h = fopen($outputFile, 'wb')) === false) return false;
-            fwrite($h, $formattedXml);
+            fwrite($h, $xmlContent);
             fclose($h);
         } else {
             // Ensure no output has been sent before headers
@@ -223,9 +353,9 @@ class CopernicusExportPlugin extends ImportExportPlugin
                 header("Content-Type: application/xml; charset=UTF-8");
                 header("Cache-Control: private");
                 header("Content-Disposition: attachment; filename=\"copernicus-issue-" . $context->getLocalizedAcronym() . '-' . $issue->getYear() . '-' . $issue->getNumber() . ".xml\"");
-                header("Content-Length: " . strlen($formattedXml));
+                header("Content-Length: " . strlen($xmlContent));
             }
-            echo $formattedXml;
+            echo $xmlContent;
             exit;
         }
         return true;
@@ -249,104 +379,17 @@ class CopernicusExportPlugin extends ImportExportPlugin
         $schemaPath = dirname(__FILE__) . '/ic-import.xsd';
         if (file_exists($schemaPath)) {
             try {
-                $isValid = $doc->schemaValidate($schemaPath);
+                $doc->schemaValidate($schemaPath);
             } catch (Exception $e) {
                 // Schema validation failed, return basic XML errors
-                return libxml_get_errors();
+                error_log("Copernicus Plugin: Schema validation error: " . $e->getMessage());
             }
         } else {
             // Fallback: basic XML validation
-            $isValid = $doc->validate();
+            $doc->validate();
         }
 
         return libxml_get_errors();
-    }
-
-    /**
-     * Handle plugin requests via callback
-     * This is called by manage() when handling import/export plugin requests
-     */
-    public function display($args, $request)
-    {
-        parent::display($args, $request);
-        $context = $request->getContext();
-
-        $op = array_shift($args);
-
-        switch ($op) {
-            case 'exportIssue':
-                // Handle export - download XML file
-                $issueId = (int)($request->getUserVar('issueId')
-                    ?: $request->getUserVar('id')
-                    ?: array_shift($args));
-
-                if (empty($issueId)) {
-                    throw new \Exception('No issue ID provided');
-                }
-
-                $issue = Repo::issue()->get($issueId);
-                if (!$issue) {
-                    throw new \Exception('Issue not found');
-                }
-
-                if ($issue->getData('contextId') != $context->getId()) {
-                    throw new \Exception('Issue does not belong to this journal');
-                }
-
-                $this->exportIssue($context, $issue);
-                exit;
-                break;
-
-            case 'validateIssue':
-                // Handle validation - show validation results page
-                $issueId = (int)($request->getUserVar('issueId')
-                    ?: $request->getUserVar('id')
-                    ?: array_shift($args));
-
-                if (empty($issueId)) {
-                    throw new \Exception('No issue ID provided');
-                }
-
-                $issue = Repo::issue()->get($issueId);
-                if (!$issue) {
-                    throw new \Exception('Issue not found');
-                }
-
-                if ($issue->getData('contextId') != $context->getId()) {
-                    throw new \Exception('Issue does not belong to this journal');
-                }
-
-                // Generate XML for validation - FIXED APPROACH
-                $doc = XMLCustomWriter::createDocument();
-                $issueNode = $this->generateIssueDom($doc, $context, $issue);
-                XMLCustomWriter::appendChild($doc, $issueNode);
-
-                // Get XML as string and format it properly
-                $xmlContent = XMLCustomWriter::getXML($doc);
-                $formattedXml = $this->formatXml($xmlContent);
-
-                // Validate XML and prepare results
-                $xml_errors = $this->validateXml($formattedXml);
-                $xml_lines = explode("\n", $formattedXml);
-
-                // Display validation template
-                $templateMgr = TemplateManager::getManager($request);
-                $templateMgr->assign('xml_errors', $xml_errors);
-                $templateMgr->assign('xml_lines', $xml_lines);
-                $templateMgr->display($this->getTemplateResource('validate.tpl'));
-                break;
-            default:
-                // Display list of issues for export
-                $issues = Repo::issue()
-                    ->getCollector()
-                    ->filterByContextIds([$context->getId()])
-                    ->filterByPublished(true)
-                    ->getMany();
-
-                $templateMgr = TemplateManager::getManager($request);
-                $templateMgr->assign('issues', $issues);
-                $templateMgr->display($this->getTemplateResource('issues.tpl'));
-        }
     }
 
     /**
