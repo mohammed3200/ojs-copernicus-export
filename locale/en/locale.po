@@ -25,3 +25,12 @@ msgstr "Validate file"
 
 msgid "common.export"
 msgstr "Export"
+
+msgid "plugins.importexport.copernicus.validationResults"
+msgstr "Validation Results"
+
+msgid "plugins.importexport.copernicus.xmlValid" 
+msgstr "The XML is valid."
+
+msgid "plugins.importexport.copernicus.generatedXml"
+msgstr "Generated XML"
