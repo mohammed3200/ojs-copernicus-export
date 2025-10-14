@@ -1,0 +1,27 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "plugins.importexport.copernicus.displayName"
+msgstr "Copernicus Export Plugin"
+
+msgid "plugins.importexport.copernicus.description"
+msgstr "This plugin provides export to Copernicus Citation Index."
+
+msgid "plugins.importexport.copernicus.selectIssue.short"
+msgstr "Select Issue"
+
+msgid "plugins.importexport.copernicus.selectIssue.long"
+msgstr "Select an Issue to export."
+
+msgid "plugins.importexport.copernicus.validate"
+msgstr "Validate file"
+
+msgid "common.export"
+msgstr "Export"

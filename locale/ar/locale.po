@@ -1,0 +1,27 @@
+# Arabic translation for Copernicus Export Plugin
+# Copyright (C) 2025
+# This file is distributed under the same license as the Copernicus Export Plugin.
+#
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ar\n"
+
+msgid "plugins.importexport.copernicus.displayName"
+msgstr "إضافة تصدير كوبرنيكوس"
+
+msgid "plugins.importexport.copernicus.description"
+msgstr "توفر هذه الإضافة التصدير إلى فهرس الاستشهادات كوبرنيكوس."
+
+msgid "plugins.importexport.copernicus.selectIssue.short"
+msgstr "اختر العدد"
+
+msgid "plugins.importexport.copernicus.selectIssue.long"
+msgstr "اختر عدداً للتصدير."
+
+msgid "plugins.importexport.copernicus.validate"
+msgstr "التحقق من الملف"
+
+msgid "common.export"
+msgstr "تصدير"
