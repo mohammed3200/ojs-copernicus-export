@@ -56,13 +56,21 @@ class CopernicusExportPlugin extends ImportExportPlugin
         return date('Y-m-d', strtotime($date));
     }
 
-    public function formatXml($simpleXMLElement)
+    public function formatXml($xmlContent)
     {
-        $xmlDocument = new \DOMDocument('1.0');
-        $xmlDocument->preserveWhiteSpace = false;
-        $xmlDocument->formatOutput = true;
-        $xmlDocument->loadXML($simpleXMLElement->saveXML());
-        return $xmlDocument->saveXML();
+        if (is_string($xmlContent)) {
+            // If it's already a string, just format it
+            $dom = new \DOMDocument('1.0');
+            $dom->preserveWhiteSpace = false;
+            $dom->formatOutput = true;
+            $dom->loadXML($xmlContent);
+            return $dom->saveXML();
+        } else {
+            // Handle DOMDocument objects properly
+            $xmlContent->preserveWhiteSpace = false;
+            $xmlContent->formatOutput = true;
+            return $xmlContent->saveXML();
+        }
     }
 
     public function &generateIssueDom(&$doc, &$context, &$issue)
@@ -86,7 +94,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
         XMLCustomWriter::setAttribute($issue_elem, 'publicationDate', $pub_issue_date, false);
 
         $num_articles = 0;
-        
+
         // Get submissions for this issue using Repo pattern
         $submissions = Repo::submission()
             ->getCollector()
@@ -101,7 +109,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
             $locales = $publication->getData('languages') ?: [$context->getPrimaryLocale()];
             $article_elem = XMLCustomWriter::createChildWithText($doc, $issue_elem, 'article', '', true);
             XMLCustomWriter::createChildWithText($doc, $article_elem, 'type', 'ORIGINAL_ARTICLE');
-            
+
             foreach ($locales as $loc) {
                 $lc = explode('_', $loc);
                 $lang_version = XMLCustomWriter::createChildWithText($doc, $article_elem, 'languageVersion', '', true);
@@ -121,17 +129,17 @@ class CopernicusExportPlugin extends ImportExportPlugin
                     XMLCustomWriter::createChildWithText($doc, $lang_version, 'pdfFileUrl', $url, true);
                 }
 
-                $publicationDate = $publication->getData('datePublished') ? 
+                $publicationDate = $publication->getData('datePublished') ?
                     str_replace(' ', "T", $publication->getData('datePublished')) . 'Z' : '';
                 XMLCustomWriter::createChildWithText($doc, $lang_version, 'publicationDate', $publicationDate, false);
-                
+
                 XMLCustomWriter::createChildWithText($doc, $lang_version, 'pageFrom', $publication->getData('pages'), true);
                 XMLCustomWriter::createChildWithText($doc, $lang_version, 'pageTo', '', true);
                 XMLCustomWriter::createChildWithText($doc, $lang_version, 'doi', $publication->getDoi(), true);
 
                 $keywords = XMLCustomWriter::createChildWithText($doc, $lang_version, 'keywords', '', true);
                 $keywordArray = $publication->getLocalizedData('keywords', $loc);
-                
+
                 if ($keywordArray && is_array($keywordArray)) {
                     foreach ($keywordArray as $keyword) {
                         XMLCustomWriter::createChildWithText($doc, $keywords, 'keyword', $keyword, true);
@@ -144,7 +152,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
             // Authors
             $authors_elem = XMLCustomWriter::createChildWithText($doc, $article_elem, 'authors', '', true);
             $index = 1;
-            
+
             $authors = $publication->getData('authors');
             if ($authors) {
                 foreach ($authors as $author) {
@@ -159,8 +167,13 @@ class CopernicusExportPlugin extends ImportExportPlugin
                     XMLCustomWriter::createChildWithText($doc, $author_elem, 'surname', $familyName, true);
                     XMLCustomWriter::createChildWithText($doc, $author_elem, 'email', $author->getEmail(), false);
                     XMLCustomWriter::createChildWithText($doc, $author_elem, 'order', $index, true);
-                    XMLCustomWriter::createChildWithText($doc, $author_elem, 'instituteAffiliation', 
-                        substr($author->getLocalizedAffiliation() ?: '', 0, 250), false);
+                    XMLCustomWriter::createChildWithText(
+                        $doc,
+                        $author_elem,
+                        'instituteAffiliation',
+                        substr($author->getLocalizedAffiliation() ?: '', 0, 250),
+                        false
+                    );
                     XMLCustomWriter::createChildWithText($doc, $author_elem, 'role', 'AUTHOR', true);
                     XMLCustomWriter::createChildWithText($doc, $author_elem, 'ORCID', $author->getOrcid(), false);
 
@@ -186,7 +199,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
             }
             $num_articles++;
         }
-        
+
         XMLCustomWriter::setAttribute($issue_elem, 'numberOfArticles', $num_articles, false);
         return $root;
     }
@@ -196,18 +209,57 @@ class CopernicusExportPlugin extends ImportExportPlugin
         $doc = XMLCustomWriter::createDocument();
         $issueNode = $this->generateIssueDom($doc, $context, $issue);
         XMLCustomWriter::appendChild($doc, $issueNode);
-        
+
+        $xmlContent = XMLCustomWriter::getXML($doc);
+        $formattedXml = $this->formatXml($xmlContent);
+
         if (!empty($outputFile)) {
             if (($h = fopen($outputFile, 'wb')) === false) return false;
-            fwrite($h, XMLCustomWriter::getXML($doc));
+            fwrite($h, $formattedXml);
             fclose($h);
         } else {
-            header("Content-Type: application/xml");
-            header("Cache-Control: private");
-            header("Content-Disposition: attachment; filename=\"copernicus-issue-" . $context->getLocalizedAcronym() . '-' . $issue->getYear() . '-' . $issue->getNumber() . ".xml\"");
-            echo $this->formatXml($doc);
+            // Ensure no output has been sent before headers
+            if (!headers_sent()) {
+                header("Content-Type: application/xml; charset=UTF-8");
+                header("Cache-Control: private");
+                header("Content-Disposition: attachment; filename=\"copernicus-issue-" . $context->getLocalizedAcronym() . '-' . $issue->getYear() . '-' . $issue->getNumber() . ".xml\"");
+                header("Content-Length: " . strlen($formattedXml));
+            }
+            echo $formattedXml;
+            exit;
         }
         return true;
+    }
+
+    /**
+     * Validate XML against Copernicus schema
+     */
+    public function validateXml($xmlContent)
+    {
+        libxml_use_internal_errors(true);
+
+        $doc = new \DOMDocument();
+
+        // Load XML with proper error handling
+        if (!$doc->loadXML($xmlContent)) {
+            return libxml_get_errors();
+        }
+
+        // Validate against Copernicus schema
+        $schemaPath = dirname(__FILE__) . '/ic-import.xsd';
+        if (file_exists($schemaPath)) {
+            try {
+                $isValid = $doc->schemaValidate($schemaPath);
+            } catch (Exception $e) {
+                // Schema validation failed, return basic XML errors
+                return libxml_get_errors();
+            }
+        } else {
+            // Fallback: basic XML validation
+            $isValid = $doc->validate();
+        }
+
+        return libxml_get_errors();
     }
 
     /**
@@ -218,36 +270,71 @@ class CopernicusExportPlugin extends ImportExportPlugin
     {
         parent::display($args, $request);
         $context = $request->getContext();
-        
-        // Get the first argument which should be the action
+
         $op = array_shift($args);
-        
+
         switch ($op) {
             case 'exportIssue':
-            case 'validateIssue':
-                // Get issue ID - try multiple sources
-                $issueId = (int)($request->getUserVar('issueId') 
-                    ?: $request->getUserVar('id') 
+                // Handle export - download XML file
+                $issueId = (int)($request->getUserVar('issueId')
+                    ?: $request->getUserVar('id')
                     ?: array_shift($args));
-                
+
                 if (empty($issueId)) {
                     throw new \Exception('No issue ID provided');
                 }
-                
+
                 $issue = Repo::issue()->get($issueId);
                 if (!$issue) {
                     throw new \Exception('Issue not found');
                 }
-                
+
                 if ($issue->getData('contextId') != $context->getId()) {
                     throw new \Exception('Issue does not belong to this journal');
                 }
-                
-                // Both actions now download the XML file
+
                 $this->exportIssue($context, $issue);
                 exit;
                 break;
 
+            case 'validateIssue':
+                // Handle validation - show validation results page
+                $issueId = (int)($request->getUserVar('issueId')
+                    ?: $request->getUserVar('id')
+                    ?: array_shift($args));
+
+                if (empty($issueId)) {
+                    throw new \Exception('No issue ID provided');
+                }
+
+                $issue = Repo::issue()->get($issueId);
+                if (!$issue) {
+                    throw new \Exception('Issue not found');
+                }
+
+                if ($issue->getData('contextId') != $context->getId()) {
+                    throw new \Exception('Issue does not belong to this journal');
+                }
+
+                // Generate XML for validation - FIXED APPROACH
+                $doc = XMLCustomWriter::createDocument();
+                $issueNode = $this->generateIssueDom($doc, $context, $issue);
+                XMLCustomWriter::appendChild($doc, $issueNode);
+
+                // Get XML as string and format it properly
+                $xmlContent = XMLCustomWriter::getXML($doc);
+                $formattedXml = $this->formatXml($xmlContent);
+
+                // Validate XML and prepare results
+                $xml_errors = $this->validateXml($formattedXml);
+                $xml_lines = explode("\n", $formattedXml);
+
+                // Display validation template
+                $templateMgr = TemplateManager::getManager($request);
+                $templateMgr->assign('xml_errors', $xml_errors);
+                $templateMgr->assign('xml_lines', $xml_lines);
+                $templateMgr->display($this->getTemplateResource('validate.tpl'));
+                break;
             default:
                 // Display list of issues for export
                 $issues = Repo::issue()
