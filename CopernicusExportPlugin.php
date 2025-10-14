@@ -51,15 +51,16 @@ class CopernicusExportPlugin extends ImportExportPlugin
     }
 
     /**
-     * Display the plugin interface
+     * Override manage() for OJS 3.x plugin routing
+     * This is called by the framework for all plugin requests
      */
-    public function display($args, $request)
+    public function manage($args, $request)
     {
-        parent::display($args, $request);
+        $this->addLocaleData();
         $context = $request->getContext();
         
-        // Get the operation from route or args
-        $op = $request->getUserVar('op') ?: array_shift($args);
+        // Get the operation (exportIssue, validateIssue, etc.)
+        $op = array_shift($args);
         
         switch ($op) {
             case 'exportIssue':
@@ -70,20 +71,20 @@ class CopernicusExportPlugin extends ImportExportPlugin
                 
                 if (empty($issueId)) {
                     error_log('Copernicus Plugin: No issue ID provided for export');
-                    $this->showError('No issue ID provided');
+                    $this->showError($request, 'No issue ID provided');
                     return;
                 }
                 
                 $issue = Repo::issue()->get($issueId);
                 if (!$issue) {
                     error_log("Copernicus Plugin: Issue not found with ID: $issueId");
-                    $this->showError('Issue not found');
+                    $this->showError($request, 'Issue not found');
                     return;
                 }
                 
                 if ($issue->getData('contextId') != $context->getId()) {
                     error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId());
-                    $this->showError('Issue does not belong to this journal');
+                    $this->showError($request, 'Issue does not belong to this journal');
                     return;
                 }
                 
@@ -98,20 +99,20 @@ class CopernicusExportPlugin extends ImportExportPlugin
                 
                 if (empty($issueId)) {
                     error_log('Copernicus Plugin: No issue ID provided for validation');
-                    $this->showError('No issue ID provided');
+                    $this->showError($request, 'No issue ID provided');
                     return;
                 }
                 
                 $issue = Repo::issue()->get($issueId);
                 if (!$issue) {
                     error_log("Copernicus Plugin: Issue not found with ID: $issueId");
-                    $this->showError('Issue not found');
+                    $this->showError($request, 'Issue not found');
                     return;
                 }
                 
                 if ($issue->getData('contextId') != $context->getId()) {
                     error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId());
-                    $this->showError('Issue does not belong to this journal');
+                    $this->showError($request, 'Issue does not belong to this journal');
                     return;
                 }
                 
@@ -119,7 +120,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
                 $xmlContent = $this->generateIssueXml($context, $issue);
                 
                 if ($xmlContent === false) {
-                    $this->showError('Failed to generate XML');
+                    $this->showError($request, 'Failed to generate XML');
                     return;
                 }
                 
@@ -161,9 +162,9 @@ class CopernicusExportPlugin extends ImportExportPlugin
     /**
      * Show error message
      */
-    private function showError($message)
+    private function showError($request, $message)
     {
-        $templateMgr = TemplateManager::getManager(Application::get()->getRequest());
+        $templateMgr = TemplateManager::getManager($request);
         $templateMgr->assign('errorMessage', $message);
         $templateMgr->display($this->getTemplateResource('error.tpl'));
     }
