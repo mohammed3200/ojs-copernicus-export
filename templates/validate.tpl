@@ -114,7 +114,7 @@
 		</div>
 
 		<div class="app__formAction">
-			<a href="{url page="management" op="importexport" path="plugin/copernicus"}" class="button">
+			<a href="{url page="management" op="importexport" path="CopernicusExportPlugin"}" class="button">
 				{translate key="common.back"}
 			</a>
 		</div>

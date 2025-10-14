@@ -40,9 +40,11 @@
 								{$issue->getNumArticles()|escape}
 							</td>
 							<td class="text-right">
-								<a href="{url op="exportIssue" issueId=$issue->getId()}" class="button button-secondary">
+								<!-- Validate button - should show validation results -->
+								<a href="{url op="validateIssue" issueId=$issue->getId()}" class="button button-secondary">
 									{translate key="plugins.importexport.copernicus.validate"}
 								</a>
+								<!-- Export button - should download XML -->
 								<a href="{url op="exportIssue" issueId=$issue->getId()}" class="button button-secondary">
 									{translate key="common.export"}
 								</a>
