@@ -59,87 +59,81 @@ class CopernicusExportPlugin extends ImportExportPlugin
         $this->addLocaleData();
         $context = $request->getContext();
         
-        // Get the operation (exportIssue, validateIssue, etc.)
-        $op = array_shift($args);
+        // Check for operation via GET parameters first, then URL path
+        $exportIssue = $request->getUserVar('exportIssue');
+        $validateIssue = $request->getUserVar('validateIssue');
         
-        switch ($op) {
-            case 'exportIssue':
-                // Handle export - download XML file
-                $issueId = (int)($request->getUserVar('issueId') 
-                    ?: $request->getUserVar('id') 
-                    ?: array_shift($args));
-                
-                if (empty($issueId)) {
-                    error_log('Copernicus Plugin: No issue ID provided for export');
-                    $this->showError($request, 'No issue ID provided');
-                    return;
-                }
-                
-                $issue = Repo::issue()->get($issueId);
-                if (!$issue) {
-                    error_log("Copernicus Plugin: Issue not found with ID: $issueId");
-                    $this->showError($request, 'Issue not found');
-                    return;
-                }
-                
-                if ($issue->getData('contextId') != $context->getId()) {
-                    error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId());
-                    $this->showError($request, 'Issue does not belong to this journal');
-                    return;
-                }
-                
-                $this->exportIssue($context, $issue);
-                break;
+        if ($exportIssue) {
+            // Handle export - download XML file
+            $issueId = (int)$request->getUserVar('issueId');
+            
+            if (empty($issueId)) {
+                error_log('Copernicus Plugin: No issue ID provided for export');
+                $this->showError($request, 'No issue ID provided');
+                return;
+            }
+            
+            $issue = Repo::issue()->get($issueId);
+            if (!$issue) {
+                error_log("Copernicus Plugin: Issue not found with ID: $issueId");
+                $this->showError($request, 'Issue not found');
+                return;
+            }
+            
+            if ($issue->getData('contextId') != $context->getId()) {
+                error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId());
+                $this->showError($request, 'Issue does not belong to this journal');
+                return;
+            }
+            
+            $this->exportIssue($context, $issue);
+            
+        } elseif ($validateIssue) {
+            // Handle validation - show validation results page
+            $issueId = (int)$request->getUserVar('issueId');
+            
+            if (empty($issueId)) {
+                error_log('Copernicus Plugin: No issue ID provided for validation');
+                $this->showError($request, 'No issue ID provided');
+                return;
+            }
+            
+            $issue = Repo::issue()->get($issueId);
+            if (!$issue) {
+                error_log("Copernicus Plugin: Issue not found with ID: $issueId");
+                $this->showError($request, 'Issue not found');
+                return;
+            }
+            
+            if ($issue->getData('contextId') != $context->getId()) {
+                error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId());
+                $this->showError($request, 'Issue does not belong to this journal');
+                return;
+            }
+            
+            // Generate XML for validation
+            $xmlContent = $this->generateIssueXml($context, $issue);
+            
+            if ($xmlContent === false) {
+                $this->showError($request, 'Failed to generate XML');
+                return;
+            }
+            
+            // Validate XML and prepare results
+            $xml_errors = $this->validateXml($xmlContent);
+            $xml_lines = explode("\n", $xmlContent);
 
-            case 'validateIssue':
-                // Handle validation - show validation results page
-                $issueId = (int)($request->getUserVar('issueId') 
-                    ?: $request->getUserVar('id') 
-                    ?: array_shift($args));
-                
-                if (empty($issueId)) {
-                    error_log('Copernicus Plugin: No issue ID provided for validation');
-                    $this->showError($request, 'No issue ID provided');
-                    return;
-                }
-                
-                $issue = Repo::issue()->get($issueId);
-                if (!$issue) {
-                    error_log("Copernicus Plugin: Issue not found with ID: $issueId");
-                    $this->showError($request, 'Issue not found');
-                    return;
-                }
-                
-                if ($issue->getData('contextId') != $context->getId()) {
-                    error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId());
-                    $this->showError($request, 'Issue does not belong to this journal');
-                    return;
-                }
-                
-                // Generate XML for validation
-                $xmlContent = $this->generateIssueXml($context, $issue);
-                
-                if ($xmlContent === false) {
-                    $this->showError($request, 'Failed to generate XML');
-                    return;
-                }
-                
-                // Validate XML and prepare results
-                $xml_errors = $this->validateXml($xmlContent);
-                $xml_lines = explode("\n", $xmlContent);
-
-                // Display validation template
-                $templateMgr = TemplateManager::getManager($request);
-                $templateMgr->assign([
-                    'xml_errors' => $xml_errors,
-                    'xml_lines' => $xml_lines
-                ]);
-                $templateMgr->display($this->getTemplateResource('validate.tpl'));
-                break;
-
-            default:
-                // Display list of issues for export
-                $this->showIssuesList($request, $context);
+            // Display validation template
+            $templateMgr = TemplateManager::getManager($request);
+            $templateMgr->assign([
+                'xml_errors' => $xml_errors,
+                'xml_lines' => $xml_lines
+            ]);
+            $templateMgr->display($this->getTemplateResource('validate.tpl'));
+            
+        } else {
+            // Display list of issues for export
+            $this->showIssuesList($request, $context);
         }
     }
 
