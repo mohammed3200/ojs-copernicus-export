@@ -40,14 +40,22 @@
 								{$issue->getNumArticles()|escape}
 							</td>
 							<td class="text-right">
-								<!-- Validate button - shows validation results -->
-								<a href="{url op="validateIssue" path="copernicus" issueId=$issue->getId()}" class="button button-secondary">
-									{translate key="plugins.importexport.copernicus.validate"}
-								</a>
-								<!-- Export button - downloads XML -->
-								<a href="{url op="exportIssue" path="copernicus" issueId=$issue->getId()}" class="button button-secondary">
-									{translate key="common.export"}
-								</a>
+								<!-- Validate button -->
+								<form action="{url router=$smarty.const.ROUTE_PAGE page="management" op="importexport" path="plugin" verb="copernicus"}" method="post" style="display: inline;">
+									<input type="hidden" name="op" value="validateIssue">
+									<input type="hidden" name="issueId" value="{$issue->getId()}">
+									<button type="submit" class="button button-secondary">
+										{translate key="plugins.importexport.copernicus.validate"}
+									</button>
+								</form>
+								<!-- Export button -->
+								<form action="{url router=$smarty.const.ROUTE_PAGE page="management" op="importexport" path="plugin" verb="copernicus"}" method="post" style="display: inline;">
+									<input type="hidden" name="op" value="exportIssue">
+									<input type="hidden" name="issueId" value="{$issue->getId()}">
+									<button type="submit" class="button button-secondary">
+										{translate key="common.export"}
+									</button>
+								</form>
 							</td>
 						</tr>
 					{/foreach}
