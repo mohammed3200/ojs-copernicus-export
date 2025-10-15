@@ -41,21 +41,13 @@
 							</td>
 							<td class="text-right">
 								<!-- Validate button - shows validation results -->
-								<form method="get" action="{url page="management" op="importexport"}" style="display:inline;">
-									<input type="hidden" name="validateIssue" value="1" />
-									<input type="hidden" name="issueId" value="{$issue->getId()}" />
-									<button type="submit" class="button button-secondary">
-										{translate key="plugins.importexport.copernicus.validate"}
-									</button>
-								</form>
+								<a href="{url op="validateIssue" path="copernicus" issueId=$issue->getId()}" class="button button-secondary">
+									{translate key="plugins.importexport.copernicus.validate"}
+								</a>
 								<!-- Export button - downloads XML -->
-								<form method="get" action="{url page="management" op="importexport"}" style="display:inline;">
-									<input type="hidden" name="exportIssue" value="1" />
-									<input type="hidden" name="issueId" value="{$issue->getId()}" />
-									<button type="submit" class="button button-secondary">
-										{translate key="common.export"}
-									</button>
-								</form>
+								<a href="{url op="exportIssue" path="copernicus" issueId=$issue->getId()}" class="button button-secondary">
+									{translate key="common.export"}
+								</a>
 							</td>
 						</tr>
 					{/foreach}

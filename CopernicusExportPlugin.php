@@ -34,10 +34,11 @@ class CopernicusExportPlugin extends ImportExportPlugin
 
     /**
      * Get the name of this plugin
+     * IMPORTANT: This must match the plugin folder name
      */
     public function getName()
     {
-        return 'CopernicusExportPlugin';
+        return 'copernicus';
     }
 
     public function getDisplayName()
@@ -51,89 +52,90 @@ class CopernicusExportPlugin extends ImportExportPlugin
     }
 
     /**
-     * Override manage() for OJS 3.x plugin routing
-     * This is called by the framework for all plugin requests
+     * Display the plugin interface - OJS 3.x uses this method
      */
-    public function manage($args, $request)
+    public function display($args, $request)
     {
-        $this->addLocaleData();
+        parent::display($args, $request);
         $context = $request->getContext();
         
-        // Check for operation via GET parameters first, then URL path
-        $exportIssue = $request->getUserVar('exportIssue');
-        $validateIssue = $request->getUserVar('validateIssue');
+        // Get the operation from the first argument
+        $op = isset($args[0]) ? $args[0] : 'index';
         
-        if ($exportIssue) {
-            // Handle export - download XML file
-            $issueId = (int)$request->getUserVar('issueId');
-            
-            if (empty($issueId)) {
-                error_log('Copernicus Plugin: No issue ID provided for export');
-                $this->showError($request, 'No issue ID provided');
-                return;
-            }
-            
-            $issue = Repo::issue()->get($issueId);
-            if (!$issue) {
-                error_log("Copernicus Plugin: Issue not found with ID: $issueId");
-                $this->showError($request, 'Issue not found');
-                return;
-            }
-            
-            if ($issue->getData('contextId') != $context->getId()) {
-                error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId());
-                $this->showError($request, 'Issue does not belong to this journal');
-                return;
-            }
-            
-            $this->exportIssue($context, $issue);
-            
-        } elseif ($validateIssue) {
-            // Handle validation - show validation results page
-            $issueId = (int)$request->getUserVar('issueId');
-            
-            if (empty($issueId)) {
-                error_log('Copernicus Plugin: No issue ID provided for validation');
-                $this->showError($request, 'No issue ID provided');
-                return;
-            }
-            
-            $issue = Repo::issue()->get($issueId);
-            if (!$issue) {
-                error_log("Copernicus Plugin: Issue not found with ID: $issueId");
-                $this->showError($request, 'Issue not found');
-                return;
-            }
-            
-            if ($issue->getData('contextId') != $context->getId()) {
-                error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId());
-                $this->showError($request, 'Issue does not belong to this journal');
-                return;
-            }
-            
-            // Generate XML for validation
-            $xmlContent = $this->generateIssueXml($context, $issue);
-            
-            if ($xmlContent === false) {
-                $this->showError($request, 'Failed to generate XML');
-                return;
-            }
-            
-            // Validate XML and prepare results
-            $xml_errors = $this->validateXml($xmlContent);
-            $xml_lines = explode("\n", $xmlContent);
+        switch ($op) {
+            case 'exportIssue':
+                // Handle export - download XML file
+                $issueId = (int)$request->getUserVar('issueId');
+                
+                if (empty($issueId)) {
+                    error_log('Copernicus Plugin: No issue ID provided for export');
+                    $this->showError($request, 'No issue ID provided');
+                    return;
+                }
+                
+                $issue = Repo::issue()->get($issueId);
+                if (!$issue) {
+                    error_log("Copernicus Plugin: Issue not found with ID: $issueId");
+                    $this->showError($request, 'Issue not found');
+                    return;
+                }
+                
+                if ($issue->getData('contextId') != $context->getId()) {
+                    error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId());
+                    $this->showError($request, 'Issue does not belong to this journal');
+                    return;
+                }
+                
+                $this->exportIssue($context, $issue);
+                break;
 
-            // Display validation template
-            $templateMgr = TemplateManager::getManager($request);
-            $templateMgr->assign([
-                'xml_errors' => $xml_errors,
-                'xml_lines' => $xml_lines
-            ]);
-            $templateMgr->display($this->getTemplateResource('validate.tpl'));
-            
-        } else {
-            // Display list of issues for export
-            $this->showIssuesList($request, $context);
+            case 'validateIssue':
+                // Handle validation - show validation results page
+                $issueId = (int)$request->getUserVar('issueId');
+                
+                if (empty($issueId)) {
+                    error_log('Copernicus Plugin: No issue ID provided for validation');
+                    $this->showError($request, 'No issue ID provided');
+                    return;
+                }
+                
+                $issue = Repo::issue()->get($issueId);
+                if (!$issue) {
+                    error_log("Copernicus Plugin: Issue not found with ID: $issueId");
+                    $this->showError($request, 'Issue not found');
+                    return;
+                }
+                
+                if ($issue->getData('contextId') != $context->getId()) {
+                    error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId());
+                    $this->showError($request, 'Issue does not belong to this journal');
+                    return;
+                }
+                
+                // Generate XML for validation
+                $xmlContent = $this->generateIssueXml($context, $issue);
+                
+                if ($xmlContent === false) {
+                    $this->showError($request, 'Failed to generate XML');
+                    return;
+                }
+                
+                // Validate XML and prepare results
+                $xml_errors = $this->validateXml($xmlContent);
+                $xml_lines = explode("\n", $xmlContent);
+
+                // Display validation template
+                $templateMgr = TemplateManager::getManager($request);
+                $templateMgr->assign([
+                    'xml_errors' => $xml_errors,
+                    'xml_lines' => $xml_lines
+                ]);
+                $templateMgr->display($this->getTemplateResource('validate.tpl'));
+                break;
+
+            default:
+                // Display list of issues for export
+                $this->showIssuesList($request, $context);
         }
     }
 
@@ -160,7 +162,10 @@ class CopernicusExportPlugin extends ImportExportPlugin
     {
         $templateMgr = TemplateManager::getManager($request);
         $templateMgr->assign('errorMessage', $message);
-        $templateMgr->display($this->getTemplateResource('error.tpl'));
+        
+        // Create a simple error template on the fly if it doesn't exist
+        echo '<div class="alert alert-danger"><strong>Error:</strong> ' . htmlspecialchars($message) . '</div>';
+        echo '<a href="' . $request->url(null, 'management', 'importexport', array('plugin', 'copernicus')) . '" class="button">Back</a>';
     }
 
     /**
@@ -174,7 +179,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
             XMLCustomWriter::appendChild($doc, $issueNode);
             $xmlContent = XMLCustomWriter::getXML($doc);
             return $this->formatXml($xmlContent);
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             error_log("Copernicus Plugin: XML generation error: " . $e->getMessage());
             return false;
         }
@@ -375,7 +380,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
         if (file_exists($schemaPath)) {
             try {
                 $doc->schemaValidate($schemaPath);
-            } catch (Exception $e) {
+            } catch (\Exception $e) {
                 // Schema validation failed, return basic XML errors
                 error_log("Copernicus Plugin: Schema validation error: " . $e->getMessage());
             }
