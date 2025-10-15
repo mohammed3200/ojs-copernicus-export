@@ -64,7 +64,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
         
         // Debug logging
         error_log("Copernicus Plugin: display() called with op='$op'");
-        error_log("Copernicus Plugin: args = " . print_r($args, true));
+        error_log("Copernicus Plugin: context ID = " . $context->getId());
         
         if ($op === 'exportIssue') {
             // Handle export - download XML file
@@ -78,15 +78,17 @@ class CopernicusExportPlugin extends ImportExportPlugin
                 return;
             }
             
-            $issue = Repo::issue()->get($issueId);
+            // Get issue WITH journal context filter
+            $issue = Repo::issue()->get($issueId, $context->getId());
             if (!$issue) {
-                error_log("Copernicus Plugin: Issue not found with ID: $issueId");
-                $this->showError($request, 'Issue not found');
+                error_log("Copernicus Plugin: Issue not found with ID: $issueId in journal: " . $context->getId());
+                $this->showError($request, 'Issue not found in this journal');
                 return;
             }
             
-            if ($issue->getData('contextId') != $context->getId()) {
-                error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId());
+            // Additional safety check
+            if ($issue->getJournalId() != $context->getId()) {
+                error_log("Copernicus Plugin: Security violation - Issue $issueId journal mismatch. Expected: " . $context->getId() . ", Got: " . $issue->getJournalId());
                 $this->showError($request, 'Issue does not belong to this journal');
                 return;
             }
@@ -105,15 +107,17 @@ class CopernicusExportPlugin extends ImportExportPlugin
                 return;
             }
             
-            $issue = Repo::issue()->get($issueId);
+            // Get issue WITH journal context filter
+            $issue = Repo::issue()->get($issueId, $context->getId());
             if (!$issue) {
-                error_log("Copernicus Plugin: Issue not found with ID: $issueId");
-                $this->showError($request, 'Issue not found');
+                error_log("Copernicus Plugin: Issue not found with ID: $issueId in journal: " . $context->getId());
+                $this->showError($request, 'Issue not found in this journal');
                 return;
             }
             
-            if ($issue->getData('contextId') != $context->getId()) {
-                error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId());
+            // Additional safety check
+            if ($issue->getJournalId() != $context->getId()) {
+                error_log("Copernicus Plugin: Security violation - Issue $issueId journal mismatch. Expected: " . $context->getId() . ", Got: " . $issue->getJournalId());
                 $this->showError($request, 'Issue does not belong to this journal');
                 return;
             }
@@ -140,7 +144,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
             
         } else {
             // Display list of issues for export
-            error_log("Copernicus Plugin: Displaying issues list");
+            error_log("Copernicus Plugin: Displaying issues list for journal: " . $context->getId());
             $this->showIssuesList($request, $context);
         }
     }
@@ -156,7 +160,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
             ->filterByPublished(true)
             ->getMany();
 
-        error_log("Copernicus Plugin: Found " . count($issues) . " issues");
+        error_log("Copernicus Plugin: Found " . count($issues) . " issues for journal: " . $context->getId());
 
         $templateMgr = TemplateManager::getManager($request);
         $templateMgr->assign('issues', $issues);
