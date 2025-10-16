@@ -158,7 +158,8 @@ class CopernicusExportPlugin extends ImportExportPlugin
             $templateMgr = TemplateManager::getManager($request);
             $templateMgr->assign([
                 'xml_errors' => $xml_errors,
-                'xml_lines' => $xml_lines
+                'xml_lines' => $xml_lines,
+                'issueId' => $issueId  // FIXED: Pass issueId to template
             ]);
             $templateMgr->display($this->getTemplateResource('validate.tpl'));
         } else {
@@ -481,16 +482,22 @@ class CopernicusExportPlugin extends ImportExportPlugin
             try {
                 if (!$doc->schemaValidate($schemaPath)) {
                     error_log("Copernicus Plugin: Schema validation failed");
+                    // Return both XML parsing errors and schema validation errors
+                    return libxml_get_errors();
+                } else {
+                    error_log("Copernicus Plugin: Schema validation passed");
+                    return []; // No errors
                 }
             } catch (\Exception $e) {
                 // Schema validation failed, return basic XML errors
                 error_log("Copernicus Plugin: Schema validation error: " . $e->getMessage());
+                return libxml_get_errors();
             }
         } else {
             error_log("Copernicus Plugin: Schema file not found at: " . $schemaPath);
+            // If schema file doesn't exist, just do basic XML validation
+            return libxml_get_errors();
         }
-
-        return libxml_get_errors();
     }
 
     /**

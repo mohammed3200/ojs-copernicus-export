@@ -198,7 +198,7 @@
 				{translate key="common.back"}
 			</a>
 			{if count($xml_errors) == 0}
-				<a href="?op=exportIssue&issueId={$request->getUserVar('issueId')}" class="button button-primary" style="margin-left: 10px;">
+				<a href="?op=exportIssue&issueId={$issueId}" class="button button-primary" style="margin-left: 10px;">
 					{translate key="common.export"} XML File
 				</a>
 			{/if}
