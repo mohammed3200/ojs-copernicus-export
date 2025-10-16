@@ -11,7 +11,7 @@
 
 {block name="page"}
 	<h1 class="app__pageHeading">
-		{translate key="plugins.importexport.copernicus.selectIssue.long"}
+		{translate key="plugins.importexport.copernicus.validationResults"}
 	</h1>
 
 	<div class="app__contentPanel">
@@ -76,13 +76,82 @@
 				margin: 0.5em 0;
 				border-radius: 0.25em;
 			}
+			.xml-container {
+				border: 1px solid #ddd;
+				border-radius: 4px;
+				margin: 1em 0;
+			}
+			.xml-header {
+				background-color: #f8f9fa;
+				padding: 0.5em 1em;
+				border-bottom: 1px solid #ddd;
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+			}
+			.xml-content {
+				max-height: 500px;
+				overflow: auto;
+				padding: 1em;
+				background-color: #f8f9fa;
+			}
+			.copy-btn {
+				background: #007ab3;
+				color: white;
+				border: none;
+				padding: 0.4em 0.8em;
+				border-radius: 3px;
+				cursor: pointer;
+				font-size: 0.9em;
+			}
+			.copy-btn:hover {
+				background: #005a87;
+			}
+			.copy-btn.copied {
+				background: #28a745;
+			}
+			.results-section {
+				margin-bottom: 2em;
+				padding: 1em;
+				background: white;
+				border-radius: 4px;
+				box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+			}
+			.section-title {
+				font-size: 1.2em;
+				font-weight: bold;
+				margin-bottom: 0.5em;
+				color: #333;
+				border-bottom: 2px solid #007ab3;
+				padding-bottom: 0.3em;
+			}
 			{/literal}
 		</style>
 
-		<h2>{translate key="plugins.importexport.copernicus.validate"} - {translate key="common.results"}</h2>
+		<script>
+		function copyXmlToClipboard() {
+			const xmlText = `{foreach from=$xml_lines item=line}{$line|replace:"`":"\\`"|replace:"'":"\\'"}\n{/foreach}`;
+			
+			navigator.clipboard.writeText(xmlText).then(function() {
+				const btn = document.getElementById('copyXmlBtn');
+				const originalText = btn.textContent;
+				btn.textContent = 'Copied!';
+				btn.classList.add('copied');
+				
+				setTimeout(function() {
+					btn.textContent = originalText;
+					btn.classList.remove('copied');
+				}, 2000);
+			}).catch(function(err) {
+				console.error('Failed to copy XML: ', err);
+				alert('Failed to copy XML to clipboard. Please select and copy manually.');
+			});
+		}
+		</script>
 
-		<div class="cont">
-			<h3>{translate key="plugins.importexport.copernicus.validationResults"}</h3>
+		<!-- Validation Results Section -->
+		<div class="results-section">
+			<div class="section-title">Validation Results</div>
 			{if count($xml_errors) > 0}
 				{foreach from=$xml_errors item=error}
 					<div>
@@ -103,20 +172,36 @@
 				{/foreach}
 			{else}
 				<div class="validation-ok">
-					<strong>{translate key="common.success"}</strong> {translate key="plugins.importexport.copernicus.xmlValid"}
+					<strong>✓ Success:</strong> The XML is valid and complies with ICI standards.
 				</div>
 			{/if}
 		</div>
 
-		<div>
-			<h3>{translate key="plugins.importexport.copernicus.generatedXml"}</h3>
-			<pre>{foreach from=$xml_lines item=line key=i}<span id="{$i+1}">{$line}</span>{/foreach}</pre>
+		<!-- Generated XML Section -->
+		<div class="results-section">
+			<div class="section-title">Generated XML</div>
+			<div class="xml-container">
+				<div class="xml-header">
+					<span><strong>XML Content</strong></span>
+					<button id="copyXmlBtn" class="copy-btn" onclick="copyXmlToClipboard()">
+						Copy XML to Clipboard
+					</button>
+				</div>
+				<div class="xml-content">
+					<pre>{foreach from=$xml_lines item=line key=i}<span id="{$i+1}">{$line}</span>{/foreach}</pre>
+				</div>
+			</div>
 		</div>
 
 		<div class="app__formAction">
 			<a href="{url page="management" op="importexport" path="CopernicusExportPlugin"}" class="button">
 				{translate key="common.back"}
 			</a>
+			{if count($xml_errors) == 0}
+				<a href="?op=exportIssue&issueId={$request->getUserVar('issueId')}" class="button button-primary" style="margin-left: 10px;">
+					{translate key="common.export"} XML File
+				</a>
+			{/if}
 		</div>
 	</div>
 {/block}

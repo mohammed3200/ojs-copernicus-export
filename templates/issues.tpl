@@ -44,8 +44,10 @@
 								<a href="?op=validateIssue&issueId={$issue->getId()}" class="button button-secondary">
 									{translate key="plugins.importexport.copernicus.validate"}
 								</a>
+								<!-- Separator -->
+								<span style="margin: 0 10px; color: #ccc;">|</span>
 								<!-- Export button -->
-								<a href="?op=exportIssue&issueId={$issue->getId()}" class="button button-secondary">
+								<a href="?op=exportIssue&issueId={$issue->getId()}" class="button button-primary">
 									{translate key="common.export"}
 								</a>
 							</td>
