@@ -202,11 +202,14 @@ class CopernicusExportPlugin extends ImportExportPlugin
     private function generateIssueXml(&$context, &$issue)
     {
         try {
-            $doc = \XMLCustomWriter::createDocument();
+            // Use DOMDocument instead of XMLCustomWriter
+            $doc = new \DOMDocument('1.0', 'UTF-8');
+            $doc->formatOutput = true;
+
             $issueNode = $this->generateIssueDom($doc, $context, $issue);
-            \XMLCustomWriter::appendChild($doc, $issueNode);
-            $xmlContent = \XMLCustomWriter::getXML($doc);
-            return $this->formatXml($xmlContent);
+            $doc->appendChild($issueNode);
+
+            return $doc->saveXML();
         } catch (\Exception $e) {
             error_log("Copernicus Plugin: XML generation error: " . $e->getMessage());
             return false;
@@ -232,25 +235,28 @@ class CopernicusExportPlugin extends ImportExportPlugin
         return $xmlContent;
     }
 
+    /**
+     * Generate issue DOM using standard DOMDocument
+     */
     public function &generateIssueDom(&$doc, &$context, &$issue)
     {
         $issn = $context->getData('printIssn') ?: $context->getData('onlineIssn');
 
-        $root = \XMLCustomWriter::createElement($doc, 'ici-import');
-        \XMLCustomWriter::setAttribute($root, "xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
-        \XMLCustomWriter::setAttribute($root, "xsi:noNamespaceSchemaLocation", "https://journals.indexcopernicus.com/ic-import.xsd");
+        $root = $doc->createElement('ici-import');
+        $root->setAttribute("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
+        $root->setAttribute("xsi:noNamespaceSchemaLocation", "./ic-import.xsd");
 
         $journal_elem = $this->createChildWithText($doc, $root, 'journal', '', true);
-        \XMLCustomWriter::setAttribute($journal_elem, 'issn', $issn);
+        $journal_elem->setAttribute('issn', $issn);
 
         $issue_elem = $this->createChildWithText($doc, $root, 'issue', '', true);
 
         $pub_issue_date = $issue->getDatePublished() ? date('Y-m-d\TH:i:s\Z', strtotime($issue->getDatePublished())) : '';
 
-        \XMLCustomWriter::setAttribute($issue_elem, 'number', $issue->getNumber());
-        \XMLCustomWriter::setAttribute($issue_elem, 'volume', $issue->getVolume());
-        \XMLCustomWriter::setAttribute($issue_elem, 'year', $issue->getYear());
-        \XMLCustomWriter::setAttribute($issue_elem, 'publicationDate', $pub_issue_date, false);
+        $issue_elem->setAttribute('number', $issue->getNumber());
+        $issue_elem->setAttribute('volume', $issue->getVolume());
+        $issue_elem->setAttribute('year', $issue->getYear());
+        $issue_elem->setAttribute('publicationDate', $pub_issue_date);
 
         $num_articles = 0;
 
@@ -272,7 +278,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
             foreach ($locales as $loc) {
                 $lc = explode('_', $loc);
                 $lang_version = $this->createChildWithText($doc, $article_elem, 'languageVersion', '', true);
-                \XMLCustomWriter::setAttribute($lang_version, 'language', $lc[0]);
+                $lang_version->setAttribute('language', $lc[0]);
                 $this->createChildWithText($doc, $lang_version, 'title', $publication->getLocalizedTitle($loc), true);
                 $this->createChildWithText($doc, $lang_version, 'abstract', strip_tags($publication->getLocalizedData('abstract', $loc)), true);
 
@@ -359,24 +365,24 @@ class CopernicusExportPlugin extends ImportExportPlugin
             $num_articles++;
         }
 
-        \XMLCustomWriter::setAttribute($issue_elem, 'numberOfArticles', $num_articles, false);
+        $issue_elem->setAttribute('numberOfArticles', $num_articles);
         return $root;
     }
 
     /**
-     * Helper method to create child element with text
+     * Helper method to create child element with text using DOMDocument
      */
     private function createChildWithText(&$doc, &$parent, $elementName, $text, $required = false)
     {
         if ($text === '' && !$required) {
             return null;
         }
-        
-        $element = \XMLCustomWriter::createElement($doc, $elementName);
+
+        $element = $doc->createElement($elementName);
         if ($text !== '') {
-            \XMLCustomWriter::createChildWithText($doc, $element, $text);
+            $element->appendChild($doc->createTextNode($text));
         }
-        \XMLCustomWriter::appendChild($parent, $element);
+        $parent->appendChild($element);
         return $element;
     }
 
@@ -424,7 +430,9 @@ class CopernicusExportPlugin extends ImportExportPlugin
         $schemaPath = dirname(__FILE__) . '/ic-import.xsd';
         if (file_exists($schemaPath)) {
             try {
-                $doc->schemaValidate($schemaPath);
+                if (!$doc->schemaValidate($schemaPath)) {
+                    error_log("Copernicus Plugin: Schema validation failed");
+                }
             } catch (\Exception $e) {
                 // Schema validation failed, return basic XML errors
                 error_log("Copernicus Plugin: Schema validation error: " . $e->getMessage());
