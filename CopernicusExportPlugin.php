@@ -211,10 +211,10 @@ class CopernicusExportPlugin extends ImportExportPlugin
             // Use DOMDocument instead of XMLCustomWriter
             $doc = new \DOMDocument('1.0', 'UTF-8');
             $doc->formatOutput = true;
-            
+
             $issueNode = $this->generateIssueDom($doc, $context, $issue);
             $doc->appendChild($issueNode);
-            
+
             return $doc->saveXML();
         } catch (\Exception $e) {
             error_log("Copernicus Plugin: XML generation error: " . $e->getMessage());
@@ -240,7 +240,6 @@ class CopernicusExportPlugin extends ImportExportPlugin
         }
         return $xmlContent;
     }
-
     public function &generateIssueDom(&$doc, &$context, &$issue)
     {
         $issn = $context->getData('printIssn') ?: $context->getData('onlineIssn');
@@ -307,8 +306,34 @@ class CopernicusExportPlugin extends ImportExportPlugin
                     date('Y-m-d\TH:i:s\Z', strtotime($publication->getData('datePublished'))) : '';
                 $this->createChildWithText($doc, $lang_version, 'publicationDate', $publicationDate, false);
 
-                $this->createChildWithText($doc, $lang_version, 'pageFrom', $publication->getData('pages') ?? '', true);
-                $this->createChildWithText($doc, $lang_version, 'pageTo', '', true);
+                // FIXED: Parse page range properly
+                $pages = $publication->getData('pages') ?? '';
+                $pageFrom = '';
+                $pageTo = '';
+
+                if (!empty($pages)) {
+                    if (strpos($pages, '-') !== false) {
+                        // Handle page ranges like "43-49"
+                        $pageParts = explode('-', $pages);
+                        $pageFrom = trim($pageParts[0]);
+                        $pageTo = trim($pageParts[1]) ?? '';
+                    } else {
+                        // Handle single page numbers
+                        $pageFrom = trim($pages);
+                        $pageTo = trim($pages);
+                    }
+                }
+
+                // Only add pageFrom if we have a valid integer
+                if (!empty($pageFrom) && is_numeric($pageFrom)) {
+                    $this->createChildWithText($doc, $lang_version, 'pageFrom', (int)$pageFrom, true);
+                }
+
+                // Only add pageTo if we have a valid integer  
+                if (!empty($pageTo) && is_numeric($pageTo)) {
+                    $this->createChildWithText($doc, $lang_version, 'pageTo', (int)$pageTo, true);
+                }
+
                 $this->createChildWithText($doc, $lang_version, 'doi', $publication->getDoi(), true);
 
                 $keywords = $this->createChildWithText($doc, $lang_version, 'keywords', '', true);
@@ -334,7 +359,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
                 foreach ($authorsCollection as $author) {
                     $authors[] = $author;
                 }
-                
+
                 foreach ($authors as $author) {
                     $author_elem = $this->createChildWithText($doc, $authors_elem, 'author', '', true);
 
@@ -347,15 +372,24 @@ class CopernicusExportPlugin extends ImportExportPlugin
                     $this->createChildWithText($doc, $author_elem, 'surname', $familyName, true);
                     $this->createChildWithText($doc, $author_elem, 'email', $author->getEmail(), false);
                     $this->createChildWithText($doc, $author_elem, 'order', $index, true);
+
+                    // FIXED: Use getLocalizedData('affiliation') instead of getLocalizedAffiliation()
+                    $affiliation = $author->getLocalizedData('affiliation') ?: '';
                     $this->createChildWithText(
                         $doc,
                         $author_elem,
                         'instituteAffiliation',
-                        substr($author->getLocalizedAffiliation() ?: '', 0, 250),
+                        substr($affiliation, 0, 250),
                         false
                     );
+
                     $this->createChildWithText($doc, $author_elem, 'role', 'AUTHOR', true);
-                    $this->createChildWithText($doc, $author_elem, 'ORCID', $author->getOrcid(), false);
+
+                    // FIXED: Only add ORCID if it's not empty and matches the expected format
+                    $orcid = $author->getOrcid();
+                    if (!empty($orcid) && preg_match('/https?:\/\/orcid\.org\/[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[X0-9]{1}/', $orcid)) {
+                        $this->createChildWithText($doc, $author_elem, 'ORCID', $orcid, false);
+                    }
 
                     $index++;
                 }
@@ -392,7 +426,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
         if ($text === '' && !$required) {
             return null;
         }
-        
+
         $element = $doc->createElement($elementName);
         if ($text !== '') {
             $element->appendChild($doc->createTextNode($text));
