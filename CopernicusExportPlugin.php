@@ -52,78 +52,107 @@ class CopernicusExportPlugin extends ImportExportPlugin
     }
 
     /**
+     * Return the issue's context id in a backwards-compatible way.
+     */
+    private function getIssueContextId($issue)
+    {
+        if (!$issue) return null;
+
+        $contextId = $issue->getData('contextId');
+        if (!empty($contextId)) return (int)$contextId;
+
+        $journalId = $issue->getData('journalId');
+        if (!empty($journalId)) return (int)$journalId;
+
+        if (method_exists($issue, 'getContextId')) {
+            $val = $issue->getContextId();
+            if (!empty($val)) return (int)$val;
+        }
+        if (method_exists($issue, 'getJournalId')) {
+            $val = $issue->getJournalId();
+            if (!empty($val)) return (int)$val;
+        }
+
+        return null;
+    }
+
+
+    /**
      * Display the plugin interface - OJS 3.x uses this method
      */
     public function display($args, $request)
     {
         parent::display($args, $request);
         $context = $request->getContext();
-        
+
         // Check for both POST and GET parameters
         $op = $request->getUserVar('op') ?: (isset($args[0]) ? $args[0] : null);
-        
+
         // Debug logging
         error_log("Copernicus Plugin: display() called with op='$op'");
         error_log("Copernicus Plugin: args = " . print_r($args, true));
-        
+
         if ($op === 'exportIssue') {
             // Handle export - download XML file
             $issueId = (int)$request->getUserVar('issueId');
-            
+
             error_log("Copernicus Plugin: Export requested for issue ID: $issueId");
-            
+
             if (empty($issueId)) {
                 error_log('Copernicus Plugin: No issue ID provided for export');
                 $this->showError($request, 'No issue ID provided');
                 return;
             }
-            
+
             $issue = Repo::issue()->get($issueId);
             if (!$issue) {
                 error_log("Copernicus Plugin: Issue not found with ID: $issueId");
                 $this->showError($request, 'Issue not found');
                 return;
             }
-            
-            if ((int)$issue->getData('contextId') != (int)$context->getId()) {
-                error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId() . ", issue contextId=" . $issue->getData('contextId'));
+
+            $issueContextId = $this->getIssueContextId($issue);
+            if ($issueContextId === null || (int)$issueContextId !== (int)$context->getId()) {
+                error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId() . ", issue contextId=" . var_export($issueContextId, true));
                 $this->showError($request, 'Issue does not belong to this journal');
                 return;
             }
-            
+
+
             $this->exportIssue($context, $issue);
-            
         } elseif ($op === 'validateIssue') {
             // Handle validation - show validation results page
             $issueId = (int)$request->getUserVar('issueId');
-            
+
             error_log("Copernicus Plugin: Validation requested for issue ID: $issueId");
-            
+
             if (empty($issueId)) {
                 error_log('Copernicus Plugin: No issue ID provided for validation');
                 $this->showError($request, 'No issue ID provided');
                 return;
             }
-            
+
             $issue = Repo::issue()->get($issueId);
             if (!$issue) {
                 error_log("Copernicus Plugin: Issue not found with ID: $issueId");
                 $this->showError($request, 'Issue not found');
                 return;
             }
-            
-            if ((int)$issue->getData('contextId') != (int)$context->getId()) {
-                error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId() . ", issue contextId=" . $issue->getData('contextId'));
+
+            $issueContextId = $this->getIssueContextId($issue);
+            if ($issueContextId === null || (int)$issueContextId !== (int)$context->getId()) {
+                error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId() . ", issue contextId=" . var_export($issueContextId, true));
                 $this->showError($request, 'Issue does not belong to this journal');
                 return;
             }
+
             $xmlContent = $this->generateIssueXml($context, $issue);
-            
+
             if ($xmlContent === false) {
                 $this->showError($request, 'Failed to generate XML');
                 return;
             }
-            
+
             // Validate XML and prepare results
             $xml_errors = $this->validateXml($xmlContent);
             $xml_lines = explode("\n", htmlentities($xmlContent));
@@ -135,7 +164,6 @@ class CopernicusExportPlugin extends ImportExportPlugin
                 'xml_lines' => $xml_lines
             ]);
             $templateMgr->display($this->getTemplateResource('validate.tpl'));
-            
         } else {
             // Display list of issues for export
             error_log("Copernicus Plugin: Displaying issues list");
@@ -341,7 +369,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
     public function exportIssue(&$context, &$issue, $outputFile = null)
     {
         $xmlContent = $this->generateIssueXml($context, $issue);
-        
+
         if ($xmlContent === false) {
             return false;
         }
