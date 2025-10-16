@@ -64,7 +64,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
         
         // Debug logging
         error_log("Copernicus Plugin: display() called with op='$op'");
-        error_log("Copernicus Plugin: context ID = " . $context->getId());
+        error_log("Copernicus Plugin: args = " . print_r($args, true));
         
         if ($op === 'exportIssue') {
             // Handle export - download XML file
@@ -78,17 +78,15 @@ class CopernicusExportPlugin extends ImportExportPlugin
                 return;
             }
             
-            // Get issue WITH journal context filter
-            $issue = Repo::issue()->get($issueId, $context->getId());
+            $issue = Repo::issue()->get($issueId);
             if (!$issue) {
-                error_log("Copernicus Plugin: Issue not found with ID: $issueId in journal: " . $context->getId());
-                $this->showError($request, 'Issue not found in this journal');
+                error_log("Copernicus Plugin: Issue not found with ID: $issueId");
+                $this->showError($request, 'Issue not found');
                 return;
             }
             
-            // Additional safety check
-            if ($issue->getJournalId() != $context->getId()) {
-                error_log("Copernicus Plugin: Security violation - Issue $issueId journal mismatch. Expected: " . $context->getId() . ", Got: " . $issue->getJournalId());
+            if ((int)$issue->getData('contextId') != (int)$context->getId()) {
+                error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId() . ", issue contextId=" . $issue->getData('contextId'));
                 $this->showError($request, 'Issue does not belong to this journal');
                 return;
             }
@@ -107,22 +105,18 @@ class CopernicusExportPlugin extends ImportExportPlugin
                 return;
             }
             
-            // Get issue WITH journal context filter
-            $issue = Repo::issue()->get($issueId, $context->getId());
+            $issue = Repo::issue()->get($issueId);
             if (!$issue) {
-                error_log("Copernicus Plugin: Issue not found with ID: $issueId in journal: " . $context->getId());
-                $this->showError($request, 'Issue not found in this journal');
+                error_log("Copernicus Plugin: Issue not found with ID: $issueId");
+                $this->showError($request, 'Issue not found');
                 return;
             }
             
-            // Additional safety check
-            if ($issue->getJournalId() != $context->getId()) {
-                error_log("Copernicus Plugin: Security violation - Issue $issueId journal mismatch. Expected: " . $context->getId() . ", Got: " . $issue->getJournalId());
+            if ((int)$issue->getData('contextId') != (int)$context->getId()) {
+                error_log("Copernicus Plugin: Issue $issueId doesn't belong to context " . $context->getId() . ", issue contextId=" . $issue->getData('contextId'));
                 $this->showError($request, 'Issue does not belong to this journal');
                 return;
             }
-            
-            // Generate XML for validation
             $xmlContent = $this->generateIssueXml($context, $issue);
             
             if ($xmlContent === false) {
@@ -144,7 +138,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
             
         } else {
             // Display list of issues for export
-            error_log("Copernicus Plugin: Displaying issues list for journal: " . $context->getId());
+            error_log("Copernicus Plugin: Displaying issues list");
             $this->showIssuesList($request, $context);
         }
     }
@@ -160,7 +154,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
             ->filterByPublished(true)
             ->getMany();
 
-        error_log("Copernicus Plugin: Found " . count($issues) . " issues for journal: " . $context->getId());
+        error_log("Copernicus Plugin: Found " . count($issues) . " issues");
 
         $templateMgr = TemplateManager::getManager($request);
         $templateMgr->assign('issues', $issues);
