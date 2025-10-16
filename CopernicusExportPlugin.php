@@ -173,11 +173,17 @@ class CopernicusExportPlugin extends ImportExportPlugin
      */
     private function showIssuesList($request, $context)
     {
-        $issues = Repo::issue()
+        $issuesCollection = Repo::issue()
             ->getCollector()
             ->filterByContextIds([$context->getId()])
             ->filterByPublished(true)
             ->getMany();
+
+        // Convert LazyCollection to array for template
+        $issues = [];
+        foreach ($issuesCollection as $issue) {
+            $issues[] = $issue;
+        }
 
         error_log("Copernicus Plugin: Found " . count($issues) . " issues");
 
@@ -205,10 +211,10 @@ class CopernicusExportPlugin extends ImportExportPlugin
             // Use DOMDocument instead of XMLCustomWriter
             $doc = new \DOMDocument('1.0', 'UTF-8');
             $doc->formatOutput = true;
-
+            
             $issueNode = $this->generateIssueDom($doc, $context, $issue);
             $doc->appendChild($issueNode);
-
+            
             return $doc->saveXML();
         } catch (\Exception $e) {
             error_log("Copernicus Plugin: XML generation error: " . $e->getMessage());
@@ -235,16 +241,13 @@ class CopernicusExportPlugin extends ImportExportPlugin
         return $xmlContent;
     }
 
-    /**
-     * Generate issue DOM using standard DOMDocument
-     */
     public function &generateIssueDom(&$doc, &$context, &$issue)
     {
         $issn = $context->getData('printIssn') ?: $context->getData('onlineIssn');
 
         $root = $doc->createElement('ici-import');
         $root->setAttribute("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
-        $root->setAttribute("xsi:noNamespaceSchemaLocation", "./ic-import.xsd");
+        $root->setAttribute("xsi:noNamespaceSchemaLocation", "https://journals.indexcopernicus.com/ic-import.xsd");
 
         $journal_elem = $this->createChildWithText($doc, $root, 'journal', '', true);
         $journal_elem->setAttribute('issn', $issn);
@@ -260,12 +263,18 @@ class CopernicusExportPlugin extends ImportExportPlugin
 
         $num_articles = 0;
 
-        // Get submissions for this issue using Repo pattern
-        $submissions = Repo::submission()
+        // Get submissions for this issue using Repo pattern - handle LazyCollection
+        $submissionsCollection = Repo::submission()
             ->getCollector()
             ->filterByContextIds([$context->getId()])
             ->filterByIssueIds([$issue->getId()])
             ->getMany();
+
+        // Convert LazyCollection to array for processing
+        $submissions = [];
+        foreach ($submissionsCollection as $submission) {
+            $submissions[] = $submission;
+        }
 
         foreach ($submissions as $submission) {
             $publication = $submission->getCurrentPublication();
@@ -282,10 +291,10 @@ class CopernicusExportPlugin extends ImportExportPlugin
                 $this->createChildWithText($doc, $lang_version, 'title', $publication->getLocalizedTitle($loc), true);
                 $this->createChildWithText($doc, $lang_version, 'abstract', strip_tags($publication->getLocalizedData('abstract', $loc)), true);
 
-                // PDF URL
-                $galleys = $publication->getData('galleys');
-                if ($galleys && count($galleys) > 0) {
-                    $galley = $galleys[0];
+                // PDF URL - handle LazyCollection for galleys
+                $galleysCollection = $publication->getData('galleys');
+                if ($galleysCollection && $galleysCollection->count() > 0) {
+                    $galley = $galleysCollection->first();
                     $request = Application::get()->getRequest();
                     $url = $request->url(null, 'article', 'view', [
                         $submission->getBestId(),
@@ -298,7 +307,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
                     date('Y-m-d\TH:i:s\Z', strtotime($publication->getData('datePublished'))) : '';
                 $this->createChildWithText($doc, $lang_version, 'publicationDate', $publicationDate, false);
 
-                $this->createChildWithText($doc, $lang_version, 'pageFrom', $publication->getData('pages'), true);
+                $this->createChildWithText($doc, $lang_version, 'pageFrom', $publication->getData('pages') ?? '', true);
                 $this->createChildWithText($doc, $lang_version, 'pageTo', '', true);
                 $this->createChildWithText($doc, $lang_version, 'doi', $publication->getDoi(), true);
 
@@ -314,12 +323,18 @@ class CopernicusExportPlugin extends ImportExportPlugin
                 }
             }
 
-            // Authors
+            // Authors - handle LazyCollection
             $authors_elem = $this->createChildWithText($doc, $article_elem, 'authors', '', true);
             $index = 1;
 
-            $authors = $publication->getData('authors');
-            if ($authors) {
+            $authorsCollection = $publication->getData('authors');
+            if ($authorsCollection) {
+                // Convert LazyCollection to array
+                $authors = [];
+                foreach ($authorsCollection as $author) {
+                    $authors[] = $author;
+                }
+                
                 foreach ($authors as $author) {
                     $author_elem = $this->createChildWithText($doc, $authors_elem, 'author', '', true);
 
@@ -377,7 +392,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
         if ($text === '' && !$required) {
             return null;
         }
-
+        
         $element = $doc->createElement($elementName);
         if ($text !== '') {
             $element->appendChild($doc->createTextNode($text));
@@ -413,7 +428,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
     }
 
     /**
-     * Validate XML against Copernicus schema
+     * Validate XML against Copernicus schema using local XSD file
      */
     public function validateXml($xmlContent)
     {
@@ -426,7 +441,7 @@ class CopernicusExportPlugin extends ImportExportPlugin
             return libxml_get_errors();
         }
 
-        // Validate against Copernicus schema
+        // Validate against local Copernicus schema
         $schemaPath = dirname(__FILE__) . '/ic-import.xsd';
         if (file_exists($schemaPath)) {
             try {
@@ -437,6 +452,8 @@ class CopernicusExportPlugin extends ImportExportPlugin
                 // Schema validation failed, return basic XML errors
                 error_log("Copernicus Plugin: Schema validation error: " . $e->getMessage());
             }
+        } else {
+            error_log("Copernicus Plugin: Schema file not found at: " . $schemaPath);
         }
 
         return libxml_get_errors();
