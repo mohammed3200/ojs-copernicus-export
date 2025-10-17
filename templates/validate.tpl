@@ -1,7 +1,7 @@
 {**
  * plugins/importexport/copernicus/templates/validate.tpl
  *
- * Copyright (c) 2013-2015 Simon Fraser University Library
+ * Copyright (c) 2013-2015 Simon Fraser University
  * Copyright (c) 2003-2015 John Willinsky
  * Distributed under the GNU GPL v2. For full terms see the file docs/COPYING.
  *
@@ -17,33 +17,7 @@
 	<div class="app__contentPanel">
 		<style type="text/css">
 			{literal}
-			pre, .cont {
-				counter-reset: line;
-				font-family: monospace;
-				background-color: #fff;
-				padding: 0.5em;
-				border-radius: .25em;
-				box-shadow: .1em .1em .5em rgba(0,0,0,.45);
-				line-height: 0;
-				margin-bottom: 2em;
-			}
-			pre span {
-				counter-increment: line;
-				display: block;
-				line-height: 1.5rem;
-				overflow: hidden;
-			}
-			pre span::before {
-				content: counter(line);
-				-webkit-user-select: none;
-				display: inline-block;
-				border-right: 1px solid #ddd;
-				padding: 0 .5em;
-				margin-right: .5em;
-				color: #888;
-				width: 2em;
-				text-align: right;
-			}
+			/* -- General formatting and line numbers (kept for accessibility) -- */
 			.validation-warning {
 				background-color: #fff3cd;
 				color: #856404;
@@ -76,40 +50,7 @@
 				margin: 0.5em 0;
 				border-radius: 0.25em;
 			}
-			.xml-container {
-				border: 1px solid #ddd;
-				border-radius: 4px;
-				margin: 1em 0;
-			}
-			.xml-header {
-				background-color: #f8f9fa;
-				padding: 0.5em 1em;
-				border-bottom: 1px solid #ddd;
-				display: flex;
-				justify-content: space-between;
-				align-items: center;
-			}
-			.xml-content {
-				max-height: 500px;
-				overflow: auto;
-				padding: 1em;
-				background-color: #f8f9fa;
-			}
-			.copy-btn {
-				background: #007ab3;
-				color: white;
-				border: none;
-				padding: 0.4em 0.8em;
-				border-radius: 3px;
-				cursor: pointer;
-				font-size: 0.9em;
-			}
-			.copy-btn:hover {
-				background: #005a87;
-			}
-			.copy-btn.copied {
-				background: #28a745;
-			}
+
 			.results-section {
 				margin-bottom: 2em;
 				padding: 1em;
@@ -125,26 +66,88 @@
 				border-bottom: 2px solid #007ab3;
 				padding-bottom: 0.3em;
 			}
+
+			/* -- XML clamp box: shows N lines and appends "..." -- */
+			.xml-clamp {
+				background:#f8f9fa;
+				border:1px solid #ddd;
+				padding:12px;
+				border-radius:6px;
+				font-family: monospace;
+				font-size: 0.95rem;
+				line-height: 1.45rem;
+
+				white-space: pre-wrap;        /* preserve newlines, allow wrapping */
+				overflow: hidden;
+				position: relative;
+				display: -webkit-box;
+				-webkit-box-orient: vertical;
+
+				/* default visible lines; change the number below as needed */
+				-webkit-line-clamp: 12;
+			}
+
+			/* fallback for browsers without -webkit-line-clamp */
+			@supports not ( -webkit-line-clamp: 1 ) {
+				.xml-clamp {
+					max-height: calc(1.45rem * 12); /* same number-of-lines * line-height */
+					overflow: hidden;
+				}
+			}
+
+			/* decorative ellipsis at the bottom-right */
+			.xml-clamp::after {
+				content: '...';
+				position: absolute;
+				right: 12px;
+				bottom: 8px;
+				background: linear-gradient(to right, rgba(248,249,250,0), #f8f9fa 40%);
+				padding-left: 6px;
+				color: #666;
+				font-weight: 600;
+				pointer-events: none;
+			}
+
+			.xml-header {
+				display:flex;
+				align-items:center;
+				justify-content:space-between;
+				margin-bottom:8px;
+			}
+
+			.copy-btn {
+				background: #007ab3;
+				color: white;
+				border: none;
+				padding: 0.4em 0.8em;
+				border-radius: 3px;
+				cursor: pointer;
+				font-size: 0.9em;
+			}
+			.copy-btn:hover { background: #005a87; }
+			.copy-btn.copied { background: #28a745; }
 			{/literal}
 		</style>
 
 		<script>
+		// copy the visible/full XML by reading the DOM node text.
 		function copyXmlToClipboard() {
-			const xmlText = `{foreach from=$xml_lines item=line}{$line|replace:"`":"\\`"|replace:"'":"\\'"}\n{/foreach}`;
-			
+			const xmlNode = document.getElementById('xml');
+			if (!xmlNode) return;
+			const xmlText = xmlNode.innerText || xmlNode.textContent || '';
 			navigator.clipboard.writeText(xmlText).then(function() {
 				const btn = document.getElementById('copyXmlBtn');
+				if (!btn) return;
 				const originalText = btn.textContent;
 				btn.textContent = 'Copied!';
 				btn.classList.add('copied');
-				
 				setTimeout(function() {
 					btn.textContent = originalText;
 					btn.classList.remove('copied');
-				}, 2000);
+				}, 1400);
 			}).catch(function(err) {
 				console.error('Failed to copy XML: ', err);
-				alert('Failed to copy XML to clipboard. Please select and copy manually.');
+				alert('{translate key="plugins.importexport.copernicus.copyFailed"|default:"Failed to copy XML to clipboard. Please select and copy manually."}');
 			});
 		}
 		</script>
@@ -180,15 +183,20 @@
 		<!-- Generated XML Section -->
 		<div class="results-section">
 			<div class="section-title">Generated XML</div>
-			<div class="xml-container">
-				<div class="xml-header">
-					<span><strong>XML Content</strong></span>
-					<button id="copyXmlBtn" class="copy-btn" onclick="copyXmlToClipboard()">
-						Copy XML to Clipboard
-					</button>
-				</div>
-				<div class="xml-content">
-					<pre>{foreach from=$xml_lines item=line key=i}<span id="{$i+1}">{$line}</span>{/foreach}</pre>
+
+			<div class="xml-header">
+				<span><strong>XML Content</strong></span>
+				<button id="copyXmlBtn" class="copy-btn" onclick="copyXmlToClipboard()">
+					Copy XML to Clipboard
+				</button>
+			</div>
+
+			<div class="xml-content">
+				<!-- render lines inside a clamp div (no show/hide button) -->
+				<div id="xml" class="xml-clamp" role="region" aria-label="XML content">
+					{foreach from=$xml_lines item=line key=i}
+						<span id="{$i+1}">{$line}</span>
+					{/foreach}
 				</div>
 			</div>
 		</div>
